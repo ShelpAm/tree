@@ -1,0 +1,33 @@
+{
+    files = {
+        "build/.objs/tree/linux/x86_64/release/tree/main.cpp.o",
+        "build/linux/x86_64/release/liblibtree.a"
+    },
+    values = {
+        "/usr/lib64/ccache/g++",
+        {
+            "-m64",
+            "-Lbuild/linux/x86_64/release",
+            "-L/home/shelpam/.xmake/packages/b/boost/1.86.0/8ca5197e991b4e538d5bb7e9ad08922c/lib",
+            "-L/home/shelpam/.xmake/packages/i/icu4c/75.1/0bd2e46011f44dc580c82667cc8aa3e5/lib",
+            "-llibtree",
+            "-lboost_wserialization",
+            "-lboost_serialization",
+            "-lboost_filesystem",
+            "-lboost_thread",
+            "-lboost_date_time",
+            "-lboost_container",
+            "-lboost_chrono",
+            "-lboost_atomic",
+            "-licutu",
+            "-licuio",
+            "-licui18n",
+            "-licuuc",
+            "-licudata",
+            "-lssl",
+            "-lcrypto",
+            "-lpthread",
+            "-ldl"
+        }
+    }
+}
