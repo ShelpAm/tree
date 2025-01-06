@@ -61,7 +61,7 @@ private:
 
         FileNode();
 
-        // ĞòÁĞ»¯·½·¨
+        // åºåˆ—åŒ–æ–¹æ³•
         template <class Archive>
         void serialize(Archive& ar, unsigned int const version)
         {
@@ -78,14 +78,14 @@ private:
     FileNode* buildTree(const std::filesystem::path& p)
     {
         assert(std::filesystem::is_directory(p) || std::filesystem::is_directory(folder_ / p));
-        std::queue<FileNode*> total; // °´Ë³Ğò¹¹½¨
+        std::queue<FileNode*> total; // æŒ‰é¡ºåºæ„å»º
 
         std::vector<std::filesystem::path> paths;
         for (auto const& i : std::filesystem::directory_iterator(folder_ / p)) {
-            paths.push_back(std::filesystem::relative(i, folder_));  //Ïà¶ÔÂ·¾¶
+            paths.push_back(std::filesystem::relative(i, folder_));  //ç›¸å¯¹è·¯å¾„
         }
 
-        // Î¬»¤Ò»¸öÏà¶ÔÎÈ¶¨µÄË³Ğò£¨Ê¹ÓÃµü´úÆ÷±éÀúÎÄ¼şµÄË³Ğò¿ÉÄÜ²»Ò»ÖÂ£©
+        // ç»´æŠ¤ä¸€ä¸ªç›¸å¯¹ç¨³å®šçš„é¡ºåºï¼ˆä½¿ç”¨è¿­ä»£å™¨éå†æ–‡ä»¶çš„é¡ºåºå¯èƒ½ä¸ä¸€è‡´ï¼‰
         std::sort(paths.begin(), paths.end());
 
         uint64_t cnt = 0;
@@ -94,14 +94,14 @@ private:
                 FileNode* now = buildTree(i);
                 cnt += now->childNum;
                 std::string h(reinterpret_cast<char*>(now->hash.data()), 32);
-                now->filepath = i;  //Ïà¶ÔÂ·¾¶
+                now->filepath = i;  //ç›¸å¯¹è·¯å¾„
                 total.push(now);
             }
             else {
                 std::string t =
                     std::to_string(std::filesystem::last_write_time(folder_ / i)
                         .time_since_epoch()
-                        .count()); // ×î½üĞŞ¸ÄÊ±¼ä
+                        .count()); // æœ€è¿‘ä¿®æ”¹æ—¶é—´
                 FileNode* now = new FileNode(t, i);
                 cnt++;
                 std::string h(reinterpret_cast<char*>(now->hash.data()), 32);
@@ -139,7 +139,7 @@ private:
     }
 
     FileNode* findFile(FileNode* folder, std::filesystem::path const& relative)
-    { // ´ÓÒ»¸ö¸¸½áµã¿ªÊ¼Ñ°ÕÒµ±Ç°ÎÄ¼ş¼ĞÏÂÂ·¾¶ÎªrelativeµÄ½áµã
+    { // ä»ä¸€ä¸ªçˆ¶ç»“ç‚¹å¼€å§‹å¯»æ‰¾å½“å‰æ–‡ä»¶å¤¹ä¸‹è·¯å¾„ä¸ºrelativeçš„ç»“ç‚¹
         if (folder == nullptr)  return nullptr;
         FileNode* root = folder->firstChild;
         while (root != nullptr && root->filepath != relative)
@@ -157,7 +157,7 @@ private:
     }
 
     void recomputeHash(FileNode* root)
-    { // rootÊÇ¾­¹ıĞŞ¸ÄµÄÎÄ¼ş½áµã
+    { // rootæ˜¯ç»è¿‡ä¿®æ”¹çš„æ–‡ä»¶ç»“ç‚¹
         if (root == nullptr)
             return;
         FileNode* iter = root->parent->firstChild;
@@ -173,7 +173,7 @@ private:
             root->parent->hash.data());
     }
 
-    // ĞÂÔöÎÄ¼ş½Úµã, insert it to keep ascending property.
+    // æ–°å¢æ–‡ä»¶èŠ‚ç‚¹, insert it to keep ascending property.
     void addNode(FileNode* newNode, FileNode* folder)
     {
         // Initializes newNode's parent.
@@ -196,12 +196,12 @@ private:
     }
 
     bool deleteNode(FileNode* folder, std::filesystem::path const& file)
-    { // É¾³ıÎÄ¼ş½áµã
+    { // åˆ é™¤æ–‡ä»¶ç»“ç‚¹
         FileNode* f = findFile(folder, file);
         FileNode* pre = findPre(folder, file);
         if (f == nullptr) return false;
 
-        if (pre == nullptr) {  //folderµÄfirstChild½áµã
+        if (pre == nullptr) {  //folderçš„firstChildç»“ç‚¹
             folder->firstChild = f->next;
             delete f;
             recomputeHash(folder->firstChild);
@@ -217,26 +217,26 @@ private:
 
     void changeHash(FileNode* root, std::string const& time,
         std::filesystem::path const& path)
-    { // ¸²¸ÇÎÄ¼şºó¸üĞÂ¹şÏ£Öµ
+    { // è¦†ç›–æ–‡ä»¶åæ›´æ–°å“ˆå¸Œå€¼
         std::string hashString = time + '|' + path.string();
         SHA256(reinterpret_cast<unsigned char const*>(hashString.c_str()),
             hashString.size(), root->hash.data());
         recomputeHash(root);
     }
 
-    // ÉèAÊÇÖ÷µ¼ÎÄ¼ş¼Ğ£¬BÊÇ±»Í¬²½ÎÄ¼ş¼Ğ
-    // ¸üĞÂ×¼Ôò£ºÒòÎªÃ»ÓĞÀûÓÃÊÂ¼ş¼àÌı»úÖÆ£¬Ö»ÄÜÏÈÕÒµ½ËùÓĞÏà¶ÔÂ·¾¶ÔÚAÖĞµ«²»ÔÚBÖĞµÄÎÄ¼şÂ·¾¶£¬ºÍÏà¶ÔÂ·¾¶ÔÚBÖĞ²»ÔÚAÖĞµÄÎÄ¼şÂ·¾¶£¬È»ºó½øĞĞBµÄĞÂÔöºÍÉ¾³ı
-    // Ö®ºóAºÍB¾ÍÄÜÍêÈ«¶ÔÓ¦ÉÏÁË£¬ÈÃAºÍBÒ»Ò»¶ÔÓ¦µØ±éÀú£¬±È¶Ô¹şÏ£Öµ£¬Èç¹û¹şÏ£Öµ²»Ò»ÖÂ£¬ÄÇÃ´¸²¸Ç¸üĞÂµ±Ç°Ö¸Ïò½áµãËù´æ´¢µÄÏà¶ÔÂ·¾¶µÄÎÄ¼ş¼´¿É
+    // è®¾Aæ˜¯ä¸»å¯¼æ–‡ä»¶å¤¹ï¼ŒBæ˜¯è¢«åŒæ­¥æ–‡ä»¶å¤¹
+    // æ›´æ–°å‡†åˆ™ï¼šå› ä¸ºæ²¡æœ‰åˆ©ç”¨äº‹ä»¶ç›‘å¬æœºåˆ¶ï¼Œåªèƒ½å…ˆæ‰¾åˆ°æ‰€æœ‰ç›¸å¯¹è·¯å¾„åœ¨Aä¸­ä½†ä¸åœ¨Bä¸­çš„æ–‡ä»¶è·¯å¾„ï¼Œå’Œç›¸å¯¹è·¯å¾„åœ¨Bä¸­ä¸åœ¨Aä¸­çš„æ–‡ä»¶è·¯å¾„ï¼Œç„¶åè¿›è¡ŒBçš„æ–°å¢å’Œåˆ é™¤
+    // ä¹‹åAå’ŒBå°±èƒ½å®Œå…¨å¯¹åº”ä¸Šäº†ï¼Œè®©Aå’ŒBä¸€ä¸€å¯¹åº”åœ°éå†ï¼Œæ¯”å¯¹å“ˆå¸Œå€¼ï¼Œå¦‚æœå“ˆå¸Œå€¼ä¸ä¸€è‡´ï¼Œé‚£ä¹ˆè¦†ç›–æ›´æ–°å½“å‰æŒ‡å‘ç»“ç‚¹æ‰€å­˜å‚¨çš„ç›¸å¯¹è·¯å¾„çš„æ–‡ä»¶å³å¯
 
     void syncTree(FileNode* A, FileNode* B)
-    { // ¹şÏ£Ê÷µÄ¸üĞÂ£¨²»ÊÇÎÄ¼şµÄ¸üĞÂ£©£¬ÓÃÓÚÎ¬»¤µ±Ç°ÎÄ¼ş¼Ğ¹şÏ£Ê÷µÄ×îĞÂĞÔ
+    { // å“ˆå¸Œæ ‘çš„æ›´æ–°ï¼ˆä¸æ˜¯æ–‡ä»¶çš„æ›´æ–°ï¼‰ï¼Œç”¨äºç»´æŠ¤å½“å‰æ–‡ä»¶å¤¹å“ˆå¸Œæ ‘çš„æœ€æ–°æ€§
 
         if (!A || !B || !A->isFolder() || !B->isFolder()) {
             throw std::runtime_error("node error(use error)");
             return;
         }
 
-        // ÕÒµ½ A ÖĞ´æÔÚµ« B ÖĞ²»´æÔÚµÄÎÄ¼ş»òÎÄ¼ş¼Ğ
+        // æ‰¾åˆ° A ä¸­å­˜åœ¨ä½† B ä¸­ä¸å­˜åœ¨çš„æ–‡ä»¶æˆ–æ–‡ä»¶å¤¹
         std::unordered_map<std::string, FileNode*> B_map;
         FileNode* currentB = B->firstChild;
         while (currentB != nullptr) {
@@ -247,36 +247,36 @@ private:
         FileNode* currentA = A->firstChild;
         while (currentA) {
             if (B_map.find(currentA->filepath.string()) == B_map.end()) {
-                // BÖĞ²»´æÔÚAµÄÎÄ¼ş½áµã£¬Ìí¼Óµ½ B
+                // Bä¸­ä¸å­˜åœ¨Açš„æ–‡ä»¶ç»“ç‚¹ï¼Œæ·»åŠ åˆ° B
                 FileNode* newNode = new FileNode(currentA->hashString);
                 addNode(newNode, B);
             }
             else
                 B_map.erase(
                     currentA->filepath
-                    .string()); // É¾³ıËùÓĞAÖĞµÄ½áµã£¬ÕâÑùÊ£ÏÂµÄ¾ÍÊÇBÖĞÓĞAÖĞÎŞµÄËùÓĞ½áµãÁË
+                    .string()); // åˆ é™¤æ‰€æœ‰Aä¸­çš„ç»“ç‚¹ï¼Œè¿™æ ·å‰©ä¸‹çš„å°±æ˜¯Bä¸­æœ‰Aä¸­æ— çš„æ‰€æœ‰ç»“ç‚¹äº†
             currentA = currentA->next;
         }
 
-        // ÕÒµ½ B ÖĞ´æÔÚµ« A ÖĞ²»´æÔÚµÄÎÄ¼ş»òÎÄ¼ş¼Ğ
+        // æ‰¾åˆ° B ä¸­å­˜åœ¨ä½† A ä¸­ä¸å­˜åœ¨çš„æ–‡ä»¶æˆ–æ–‡ä»¶å¤¹
         for (auto const& [filepath, node] : B_map) {
-            deleteNode(B, filepath); // É¾³ı B ÖĞ¶àÓàµÄÎÄ¼ş»òÎÄ¼ş¼Ğ
+            deleteNode(B, filepath); // åˆ é™¤ B ä¸­å¤šä½™çš„æ–‡ä»¶æˆ–æ–‡ä»¶å¤¹
         }
 
-        // ±éÀúÁ½¿ÃÊ÷²¢±È¶Ô¹şÏ£Öµ£¬Èç¹û²»Ò»ÖÂÔò¸üĞÂ
+        // éå†ä¸¤æ£µæ ‘å¹¶æ¯”å¯¹å“ˆå¸Œå€¼ï¼Œå¦‚æœä¸ä¸€è‡´åˆ™æ›´æ–°
         currentA = A->firstChild;
         currentB = B->firstChild;
         while (currentA && currentB) {
             if (currentA->filepath == currentB->filepath) {
                 if (currentA->isDiff(currentB)) {
-                    // Hash ²»Ò»ÖÂ£¬¸üĞÂ B ÖĞµÄÎÄ¼ş
+                    // Hash ä¸ä¸€è‡´ï¼Œæ›´æ–° B ä¸­çš„æ–‡ä»¶
                     std::string time = std::to_string(
                         std::filesystem::last_write_time(currentA->filepath)
                         .time_since_epoch()
                         .count());
                     changeHash(currentB, time, currentA->filepath);
                 }
-                // µİ¹éµ÷ÓÃ´¦Àí×ÓÎÄ¼ş¼Ğ
+                // é€’å½’è°ƒç”¨å¤„ç†å­æ–‡ä»¶å¤¹
                 if (currentA->isFolder() && currentB->isFolder()) {
                     syncTree(currentA, currentB);
                 }
@@ -284,14 +284,14 @@ private:
                 currentB = currentB->next;
             }
             else {
-                // Èç¹û³öÏÖÁËÂ·¾¶²»Æ¥ÅäµÄÇé¿ö£¨²»Ó¦µ±·¢Éú£©
+                // å¦‚æœå‡ºç°äº†è·¯å¾„ä¸åŒ¹é…çš„æƒ…å†µï¼ˆä¸åº”å½“å‘ç”Ÿï¼‰
                 throw std::runtime_error("match error(code error)");
                 break;
             }
         }
     }
 
-    // AÒÀÈ»ÎªÖ÷µ¼ÎÄ¼ş¼Ğ
+    // Aä¾ç„¶ä¸ºä¸»å¯¼æ–‡ä»¶å¤¹
     void syncFile(FileNode* A, FileNode* B, std::filesystem::path const& rootA,
         std::filesystem::path const& rootB);
 
@@ -304,7 +304,7 @@ private:
         delete node;
     }
 
-    // ĞòÁĞ»¯¹şÏ£Ê÷ÖÁÎÄ¼şÖĞ
+    // åºåˆ—åŒ–å“ˆå¸Œæ ‘è‡³æ–‡ä»¶ä¸­
     void writeTree(std::ofstream& ofile) const
     {
         if (!ofile) {
@@ -314,10 +314,10 @@ private:
         boost::archive::text_oarchive oa(ofile);
         oa << root_;
         ofile.close();
-        std::cout << "Íê³É±£´æ" << std::endl;
+        std::cout << "å®Œæˆä¿å­˜" << std::endl;
     }
 
-    // boost¿â²»Ö§³ÖË«ÏòÖ¸Õë£¬Òò´ËÖ»±£´æµ¥Ïò£¬ÁíÍâÒ»¸ö·½ÏòµÄÖ¸ÕëÖØĞÂ¹¹½¨
+    // booståº“ä¸æ”¯æŒåŒå‘æŒ‡é’ˆï¼Œå› æ­¤åªä¿å­˜å•å‘ï¼Œå¦å¤–ä¸€ä¸ªæ–¹å‘çš„æŒ‡é’ˆé‡æ–°æ„å»º
     void ptrHelper(FileNode* root)
     {
         if (root == nullptr || root->firstChild == nullptr)
@@ -325,7 +325,7 @@ private:
         FileNode* iter = root->firstChild;
         while (iter != nullptr) {
             iter->parent = root;
-            ptrHelper(root); // ¿ÉÄÜÓĞÎÄ¼ş¼Ğ½áµã
+            ptrHelper(root); // å¯èƒ½æœ‰æ–‡ä»¶å¤¹ç»“ç‚¹
             iter = iter->next;
         }
     }
@@ -341,7 +341,7 @@ private:
         ia >> root_;
         ptrHelper(root_);
         ifile.close();
-        std::cout << "Íê³É¶ÁÈ¡ºÍ¹¹½¨" << std::endl;
+        std::cout << "å®Œæˆè¯»å–å’Œæ„å»º" << std::endl;
     }
 
 public:
