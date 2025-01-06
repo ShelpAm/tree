@@ -61,7 +61,8 @@ MerkleTree::MerkleTree(std::string dir_path)
     namespace fs = std::filesystem;
 
     if (!fs::is_directory(dir_path)) {
-        throw std::runtime_error{"path isn't a directory"};
+        throw std::runtime_error{
+            std::format("path {} isn't a directory", dir_path)};
     }
     folder_ = std::move(dir_path);
     root_ = buildTree(folder_); // 递归建树
