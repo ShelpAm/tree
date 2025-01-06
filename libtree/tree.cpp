@@ -53,7 +53,7 @@ MerkleTree::FileNode::FileNode()
 
 void MerkleTree::sync_from(MerkleTree const &other)
 {
-    syncFile(root_, other.root_, root_->filepath, other.root_->filepath);
+    syncFile(other.root_, root_, other.root_->filepath, root_->filepath);
 }
 
 MerkleTree::MerkleTree(std::string dir_path)
@@ -144,8 +144,8 @@ void MerkleTree::syncFile(FileNode *A, FileNode *B,
             currentA = currentA->next;
             currentB = currentB->next;
         }
-        // else {
-        //     throw std::runtime_error("match error(code error)");
-        // }
+        else {
+            break;
+        }
     }
 }

@@ -5,7 +5,7 @@
 int main(int argc, char **argv)
 {
     if (argc != 3) {
-        std::println(std::cerr, "Usage: {} <src-dir> <dest-dir>", *argv);
+        std::println(std::cerr, "Usage: {} <from> <to>", *argv);
         return EXIT_FAILURE;
     }
 
