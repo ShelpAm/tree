@@ -18,97 +18,93 @@
 
 namespace boost::serialization {
 
-// Specialization for std::filesystem::path
-template <typename Archive>
-void serialize(Archive &ar, std::filesystem::path &p,
-               unsigned int const version)
-{
-    if constexpr (Archive::is_saving::value) {
-        ar & p.string();
+    // Specialization for std::filesystem::path
+    template <typename Archive>
+    void serialize(Archive& ar, std::filesystem::path& p,
+        unsigned int const version)
+    {
+        if constexpr (Archive::is_saving::value) {
+            ar& p.string();
+        }
+        else {
+            std::string buf;
+            ar& buf;
+            p = buf;
+        }
     }
-    else {
-        std::string buf;
-        ar & buf;
-        p = buf;
-    }
-}
 
 } // namespace boost::serialization
 
 class MerkleTree {
-  private:
+private:
     struct FileNode {
 
         std::string hashString;
         std::filesystem::path filepath;
         std::array<unsigned char, 32> hash;
-        FileNode *parent = nullptr;
-        FileNode *firstChild = nullptr;
-        FileNode *next = nullptr;
+        FileNode* parent = nullptr;
+        FileNode* firstChild = nullptr;
+        FileNode* next = nullptr;
         uint64_t childNum = 0;
 
         bool isFolder();
 
-        bool isDiff(FileNode const *other);
+        bool isDiff(FileNode const* other);
 
-        FileNode(std::string const &time, std::filesystem::path const &path);
+        FileNode(std::string const& time, std::filesystem::path const& path);
 
         FileNode(std::string s);
 
-        FileNode(unsigned char *h);
+        FileNode(unsigned char* h);
 
-        FileNode(FileNode *other);
+        FileNode(FileNode* other);
 
         FileNode();
 
-        // åºåˆ—åŒ–æ–¹æ³•
+        // ĞòÁĞ»¯·½·¨
         template <class Archive>
-        void serialize(Archive &ar, unsigned int const version)
+        void serialize(Archive& ar, unsigned int const version)
         {
-            ar & hashString;
-            ar & filepath;
-            ar & childNum;
-            ar &boost::serialization::make_array(hash.data(), hash.size());
+            ar& hashString;
+            ar& filepath;
+            ar& childNum;
+            ar& boost::serialization::make_array(hash.data(), hash.size());
         }
     };
 
     std::filesystem::path folder_;
-    FileNode *root_ = nullptr;
+    FileNode* root_ = nullptr;
 
-    FileNode *buildTree(std::filesystem::path p)
+    FileNode* buildTree(const std::filesystem::path& p)
     {
-        assert(std::filesystem::is_directory(p));
-        std::queue<FileNode *> total; // æŒ‰é¡ºåºæ„å»º
+        assert(std::filesystem::is_directory(p) || std::filesystem::is_directory(folder_ / p));
+        std::queue<FileNode*> total; // °´Ë³Ğò¹¹½¨
 
         std::vector<std::filesystem::path> paths;
-        for (auto const &i : std::filesystem::directory_iterator(p)) {
-            paths.push_back(std::filesystem::relative(i, folder_));
+        for (auto const& i : std::filesystem::directory_iterator(folder_ / p)) {
+            paths.push_back(std::filesystem::relative(i, folder_));  //Ïà¶ÔÂ·¾¶
         }
 
-        // ç»´æŠ¤ä¸€ä¸ªç›¸å¯¹ç¨³å®šçš„é¡ºåºï¼ˆä½¿ç”¨è¿­ä»£å™¨éå†æ–‡ä»¶çš„é¡ºåºå¯èƒ½ä¸ä¸€è‡´ï¼‰
-        std::ranges::sort(paths);
+        // Î¬»¤Ò»¸öÏà¶ÔÎÈ¶¨µÄË³Ğò£¨Ê¹ÓÃµü´úÆ÷±éÀúÎÄ¼şµÄË³Ğò¿ÉÄÜ²»Ò»ÖÂ£©
+        std::sort(paths.begin(), paths.end());
 
         uint64_t cnt = 0;
-        for (auto const &i : paths) {
-            if (std::filesystem::is_directory(i)) {
-                FileNode *now = buildTree(i);
+        for (auto const& i : paths) {
+            if (std::filesystem::is_directory(folder_ / i)) {
+                FileNode* now = buildTree(i);
                 cnt += now->childNum;
-                std::string h(reinterpret_cast<char *>(now->hash.data()), 32);
-                std::string relativePath =
-                    std::filesystem::relative(i, folder_).string(); // ç›¸å¯¹è·¯å¾„
-                now->filepath = relativePath;
+                std::string h(reinterpret_cast<char*>(now->hash.data()), 32);
+                now->filepath = i;  //Ïà¶ÔÂ·¾¶
                 total.push(now);
             }
             else {
                 std::string t =
-                    std::to_string(std::filesystem::last_write_time(i)
-                                       .time_since_epoch()
-                                       .count()); // æœ€è¿‘ä¿®æ”¹æ—¶é—´
-                std::string relativePath =
-                    std::filesystem::relative(i, folder_).string(); // ç›¸å¯¹è·¯å¾„
-                FileNode *now = new FileNode(t, relativePath);
+                    std::to_string(std::filesystem::last_write_time(folder_ / i)
+                        .time_since_epoch()
+                        .count()); // ×î½üĞŞ¸ÄÊ±¼ä
+                FileNode* now = new FileNode(t, i);
                 cnt++;
-                std::string h(reinterpret_cast<char *>(now->hash.data()), 32);
+                std::string h(reinterpret_cast<char*>(now->hash.data()), 32);
 
                 total.push(now);
             }
@@ -116,20 +112,20 @@ class MerkleTree {
 
         std::ostringstream fatherstr;
 
-        FileNode *firstChild = nullptr;
+        FileNode* firstChild = nullptr;
 
         while (total.size() > 0) {
-            FileNode *curr = total.front();
+            FileNode* curr = total.front();
             total.pop();
             if (firstChild == nullptr)
                 firstChild = curr;
 
             curr->next = (total.empty()) ? nullptr : total.front();
-            std::string h(reinterpret_cast<char *>(curr->hash.data()), 32);
+            std::string h(reinterpret_cast<char*>(curr->hash.data()), 32);
             fatherstr << h;
         }
 
-        FileNode *current = new FileNode(fatherstr.str());
+        FileNode* current = new FileNode(fatherstr.str());
         current->filepath = p;
         current->firstChild = firstChild;
         current->childNum = cnt;
@@ -142,34 +138,43 @@ class MerkleTree {
         return current;
     }
 
-    FileNode *findFile(FileNode *root, std::filesystem::path const &relative)
-    { // ä»ä¸€ä¸ªæ–‡ä»¶ç»“ç‚¹å¼€å§‹å¯»æ‰¾å½“çº§ç›®å½•ä¸‹è·¯å¾„ä¸ºrelativeçš„ç»“ç‚¹
-        if (root == nullptr)
-            return nullptr;
-        if (root->filepath == relative)
-            return root;
-        return findFile(root->next, relative);
+    FileNode* findFile(FileNode* folder, std::filesystem::path const& relative)
+    { // ´ÓÒ»¸ö¸¸½áµã¿ªÊ¼Ñ°ÕÒµ±Ç°ÎÄ¼ş¼ĞÏÂÂ·¾¶ÎªrelativeµÄ½áµã
+        if (folder == nullptr)  return nullptr;
+        FileNode* root = folder->firstChild;
+        while (root != nullptr && root->filepath != relative)
+            root = root->next;
+        return root;
     }
 
-    void recomputeHash(FileNode *root)
-    { // rootæ˜¯ç»è¿‡ä¿®æ”¹çš„ç»“ç‚¹
+    FileNode* findPre(FileNode* folder, std::filesystem::path const& relative) {
+        if (folder == nullptr)  return nullptr;
+        FileNode* root = folder->firstChild;
+
+        while (root != nullptr && root->next->filepath != relative)
+            root = root->next;
+        return root;
+    }
+
+    void recomputeHash(FileNode* root)
+    { // rootÊÇ¾­¹ıĞŞ¸ÄµÄÎÄ¼ş½áµã
         if (root == nullptr)
             return;
-        FileNode *iter = root->parent->firstChild;
+        FileNode* iter = root->parent->firstChild;
         std::stringstream rehash;
         while (iter != nullptr) {
-            std::string h(reinterpret_cast<char *>(iter->hash.data()), 32);
+            std::string h(reinterpret_cast<char*>(iter->hash.data()), 32);
             rehash << h;
 
             iter = iter->next;
         }
         std::string f = rehash.str();
-        SHA256(reinterpret_cast<unsigned char const *>(f.c_str()), f.size(),
-               root->parent->hash.data());
+        SHA256(reinterpret_cast<unsigned char const*>(f.c_str()), f.size(),
+            root->parent->hash.data());
     }
 
-    // æ–°å¢æ–‡ä»¶èŠ‚ç‚¹, insert it to keep ascending property.
-    void addNode(FileNode *newNode, FileNode *folder)
+    // ĞÂÔöÎÄ¼ş½Úµã, insert it to keep ascending property.
+    void addNode(FileNode* newNode, FileNode* folder)
     {
         // Initializes newNode's parent.
         newNode->parent = folder;
@@ -178,7 +183,7 @@ class MerkleTree {
         auto head = std::make_unique<FileNode>(); // Virtual node
         head->next = folder->firstChild;
 
-        auto *p{head.get()};
+        auto* p{ head.get() };
         while (p->next != nullptr && newNode->filepath >= p->next->filepath) {
             p = p->next;
         }
@@ -190,94 +195,88 @@ class MerkleTree {
         recomputeHash(newNode);
     }
 
-    bool deleteNode(FileNode *folder, std::filesystem::path const &file)
-    { // åˆ é™¤æ–‡ä»¶ç»“ç‚¹
-        FileNode *f = findFile(folder, file);
-        if (f == nullptr)
-            return false;
+    bool deleteNode(FileNode* folder, std::filesystem::path const& file)
+    { // É¾³ıÎÄ¼ş½áµã
+        FileNode* f = findFile(folder, file);
+        FileNode* pre = findPre(folder, file);
+        if (f == nullptr) return false;
 
-        if (f->firstChild == nullptr) {
-            if (f->parent->firstChild == f) {
-                f->parent->firstChild = f->next;
-                auto *p = f;
-                delete p;
-            }
-            else {
-                // TODO(shelpam): fix me
-                // auto *p = f;
-                // delete f;
-            }
+        if (pre == nullptr) {  //folderµÄfirstChild½áµã
+            folder->firstChild = f->next;
+            delete f;
+            recomputeHash(folder->firstChild);
+            return true;
         }
         else {
-            // TODO(shelpam): maybe problems here. Didn't check.
-            deleteTree(f);
+            pre->next = f->next;
+            delete f;
+            recomputeHash(folder->firstChild);
+            return true;
         }
-        SHA256(reinterpret_cast<unsigned char const *>(""), 0, f->hash.data());
-        recomputeHash(f);
-        return true;
     }
 
-    void changeHash(FileNode *root, std::string const &time,
-                    std::filesystem::path const &path)
-    { // è¦†ç›–æ–‡ä»¶åæ›´æ–°å“ˆå¸Œå€¼
+    void changeHash(FileNode* root, std::string const& time,
+        std::filesystem::path const& path)
+    { // ¸²¸ÇÎÄ¼şºó¸üĞÂ¹şÏ£Öµ
         std::string hashString = time + '|' + path.string();
-        SHA256(reinterpret_cast<unsigned char const *>(hashString.c_str()),
-               hashString.size(), root->hash.data());
+        SHA256(reinterpret_cast<unsigned char const*>(hashString.c_str()),
+            hashString.size(), root->hash.data());
         recomputeHash(root);
     }
 
-    // è®¾Aæ˜¯ä¸»å¯¼æ–‡ä»¶å¤¹ï¼ŒBæ˜¯è¢«åŒæ­¥æ–‡ä»¶å¤¹
-    // æ›´æ–°å‡†åˆ™ï¼šå› ä¸ºæ²¡æœ‰åˆ©ç”¨äº‹ä»¶ç›‘å¬æœºåˆ¶ï¼Œåªèƒ½å…ˆæ‰¾åˆ°æ‰€æœ‰ç›¸å¯¹è·¯å¾„åœ¨Aä¸­ä½†ä¸åœ¨Bä¸­çš„æ–‡ä»¶è·¯å¾„ï¼Œå’Œç›¸å¯¹è·¯å¾„åœ¨Bä¸­ä¸åœ¨Aä¸­çš„æ–‡ä»¶è·¯å¾„ï¼Œç„¶åè¿›è¡ŒBçš„æ–°å¢å’Œåˆ é™¤
-    // ä¹‹åAå’ŒBå°±èƒ½å®Œå…¨å¯¹åº”ä¸Šäº†ï¼Œè®©Aå’ŒBä¸€ä¸€å¯¹åº”åœ°éå†ï¼Œæ¯”å¯¹å“ˆå¸Œå€¼ï¼Œå¦‚æœå“ˆå¸Œå€¼ä¸ä¸€è‡´ï¼Œé‚£ä¹ˆè¦†ç›–æ›´æ–°å½“å‰æŒ‡å‘ç»“ç‚¹æ‰€å­˜å‚¨çš„ç›¸å¯¹è·¯å¾„çš„æ–‡ä»¶å³å¯
+    // ÉèAÊÇÖ÷µ¼ÎÄ¼ş¼Ğ£¬BÊÇ±»Í¬²½ÎÄ¼ş¼Ğ
+    // ¸üĞÂ×¼Ôò£ºÒòÎªÃ»ÓĞÀûÓÃÊÂ¼ş¼àÌı»úÖÆ£¬Ö»ÄÜÏÈÕÒµ½ËùÓĞÏà¶ÔÂ·¾¶ÔÚAÖĞµ«²»ÔÚBÖĞµÄÎÄ¼şÂ·¾¶£¬ºÍÏà¶ÔÂ·¾¶ÔÚBÖĞ²»ÔÚAÖĞµÄÎÄ¼şÂ·¾¶£¬È»ºó½øĞĞBµÄĞÂÔöºÍÉ¾³ı
+    // Ö®ºóAºÍB¾ÍÄÜÍêÈ«¶ÔÓ¦ÉÏÁË£¬ÈÃAºÍBÒ»Ò»¶ÔÓ¦µØ±éÀú£¬±È¶Ô¹şÏ£Öµ£¬Èç¹û¹şÏ£Öµ²»Ò»ÖÂ£¬ÄÇÃ´¸²¸Ç¸üĞÂµ±Ç°Ö¸Ïò½áµãËù´æ´¢µÄÏà¶ÔÂ·¾¶µÄÎÄ¼ş¼´¿É
 
-    void syncTree(FileNode *A, FileNode *B)
-    { // å“ˆå¸Œæ ‘çš„æ›´æ–°ï¼ˆä¸æ˜¯æ–‡ä»¶çš„æ›´æ–°ï¼‰ï¼Œç”¨äºç»´æŠ¤å½“å‰æ–‡ä»¶å¤¹å“ˆå¸Œæ ‘çš„æœ€æ–°æ€§
+    void syncTree(FileNode* A, FileNode* B)
+    { // ¹şÏ£Ê÷µÄ¸üĞÂ£¨²»ÊÇÎÄ¼şµÄ¸üĞÂ£©£¬ÓÃÓÚÎ¬»¤µ±Ç°ÎÄ¼ş¼Ğ¹şÏ£Ê÷µÄ×îĞÂĞÔ
+
         if (!A || !B || !A->isFolder() || !B->isFolder()) {
             throw std::runtime_error("node error(use error)");
             return;
         }
 
-        // æ‰¾åˆ° A ä¸­å­˜åœ¨ä½† B ä¸­ä¸å­˜åœ¨çš„æ–‡ä»¶æˆ–æ–‡ä»¶å¤¹
-        std::unordered_map<std::string, FileNode *> B_map;
-        FileNode *currentB = B->firstChild;
+        // ÕÒµ½ A ÖĞ´æÔÚµ« B ÖĞ²»´æÔÚµÄÎÄ¼ş»òÎÄ¼ş¼Ğ
+        std::unordered_map<std::string, FileNode*> B_map;
+        FileNode* currentB = B->firstChild;
         while (currentB != nullptr) {
             B_map[currentB->filepath.string()] = currentB;
             currentB = currentB->next;
         }
 
-        FileNode *currentA = A->firstChild;
+        FileNode* currentA = A->firstChild;
         while (currentA) {
             if (B_map.find(currentA->filepath.string()) == B_map.end()) {
-                // Bä¸­ä¸å­˜åœ¨Açš„æ–‡ä»¶ç»“ç‚¹ï¼Œæ·»åŠ åˆ° B
-                FileNode *newNode = new FileNode(currentA->hashString);
+                // BÖĞ²»´æÔÚAµÄÎÄ¼ş½áµã£¬Ìí¼Óµ½ B
+                FileNode* newNode = new FileNode(currentA->hashString);
                 addNode(newNode, B);
             }
             else
                 B_map.erase(
                     currentA->filepath
-                        .string()); // åˆ é™¤æ‰€æœ‰Aä¸­çš„ç»“ç‚¹ï¼Œè¿™æ ·å‰©ä¸‹çš„å°±æ˜¯Bä¸­æœ‰Aä¸­æ— çš„æ‰€æœ‰ç»“ç‚¹äº†
+                    .string()); // É¾³ıËùÓĞAÖĞµÄ½áµã£¬ÕâÑùÊ£ÏÂµÄ¾ÍÊÇBÖĞÓĞAÖĞÎŞµÄËùÓĞ½áµãÁË
             currentA = currentA->next;
         }
 
-        // æ‰¾åˆ° B ä¸­å­˜åœ¨ä½† A ä¸­ä¸å­˜åœ¨çš„æ–‡ä»¶æˆ–æ–‡ä»¶å¤¹
-        for (auto const &[filepath, node] : B_map) {
-            deleteNode(B, filepath); // åˆ é™¤ B ä¸­å¤šä½™çš„æ–‡ä»¶æˆ–æ–‡ä»¶å¤¹
+        // ÕÒµ½ B ÖĞ´æÔÚµ« A ÖĞ²»´æÔÚµÄÎÄ¼ş»òÎÄ¼ş¼Ğ
+        for (auto const& [filepath, node] : B_map) {
+            deleteNode(B, filepath); // É¾³ı B ÖĞ¶àÓàµÄÎÄ¼ş»òÎÄ¼ş¼Ğ
         }
 
-        // éå†ä¸¤æ£µæ ‘å¹¶æ¯”å¯¹å“ˆå¸Œå€¼ï¼Œå¦‚æœä¸ä¸€è‡´åˆ™æ›´æ–°
+        // ±éÀúÁ½¿ÃÊ÷²¢±È¶Ô¹şÏ£Öµ£¬Èç¹û²»Ò»ÖÂÔò¸üĞÂ
         currentA = A->firstChild;
         currentB = B->firstChild;
         while (currentA && currentB) {
             if (currentA->filepath == currentB->filepath) {
                 if (currentA->isDiff(currentB)) {
-                    // Hash ä¸ä¸€è‡´ï¼Œæ›´æ–° B ä¸­çš„æ–‡ä»¶
+                    // Hash ²»Ò»ÖÂ£¬¸üĞÂ B ÖĞµÄÎÄ¼ş
                     std::string time = std::to_string(
                         std::filesystem::last_write_time(currentA->filepath)
-                            .time_since_epoch()
-                            .count());
+                        .time_since_epoch()
+                        .count());
                     changeHash(currentB, time, currentA->filepath);
                 }
-                // é€’å½’è°ƒç”¨å¤„ç†å­æ–‡ä»¶å¤¹
+                // µİ¹éµ÷ÓÃ´¦Àí×ÓÎÄ¼ş¼Ğ
                 if (currentA->isFolder() && currentB->isFolder()) {
                     syncTree(currentA, currentB);
                 }
@@ -285,18 +284,18 @@ class MerkleTree {
                 currentB = currentB->next;
             }
             else {
-                // å¦‚æœå‡ºç°äº†è·¯å¾„ä¸åŒ¹é…çš„æƒ…å†µï¼ˆä¸åº”å½“å‘ç”Ÿï¼‰
+                // Èç¹û³öÏÖÁËÂ·¾¶²»Æ¥ÅäµÄÇé¿ö£¨²»Ó¦µ±·¢Éú£©
                 throw std::runtime_error("match error(code error)");
                 break;
             }
         }
     }
 
-    // Aä¾ç„¶ä¸ºä¸»å¯¼æ–‡ä»¶å¤¹
-    void syncFile(FileNode *A, FileNode *B, std::filesystem::path const &rootA,
-                  std::filesystem::path const &rootB);
+    // AÒÀÈ»ÎªÖ÷µ¼ÎÄ¼ş¼Ğ
+    void syncFile(FileNode* A, FileNode* B, std::filesystem::path const& rootA,
+        std::filesystem::path const& rootB);
 
-    void deleteTree(FileNode *node)
+    void deleteTree(FileNode* node)
     {
         if (node == nullptr)
             return;
@@ -305,8 +304,8 @@ class MerkleTree {
         delete node;
     }
 
-    // åºåˆ—åŒ–å“ˆå¸Œæ ‘è‡³æ–‡ä»¶ä¸­
-    void writeTree(std::ofstream &ofile) const
+    // ĞòÁĞ»¯¹şÏ£Ê÷ÖÁÎÄ¼şÖĞ
+    void writeTree(std::ofstream& ofile) const
     {
         if (!ofile) {
             throw std::runtime_error("ostream error");
@@ -315,23 +314,23 @@ class MerkleTree {
         boost::archive::text_oarchive oa(ofile);
         oa << root_;
         ofile.close();
-        std::cout << "å®Œæˆä¿å­˜" << std::endl;
+        std::cout << "Íê³É±£´æ" << std::endl;
     }
 
-    // booståº“ä¸æ”¯æŒåŒå‘æŒ‡é’ˆï¼Œå› æ­¤åªä¿å­˜å•å‘ï¼Œå¦å¤–ä¸€ä¸ªæ–¹å‘çš„æŒ‡é’ˆé‡æ–°æ„å»º
-    void ptrHelper(FileNode *root)
+    // boost¿â²»Ö§³ÖË«ÏòÖ¸Õë£¬Òò´ËÖ»±£´æµ¥Ïò£¬ÁíÍâÒ»¸ö·½ÏòµÄÖ¸ÕëÖØĞÂ¹¹½¨
+    void ptrHelper(FileNode* root)
     {
         if (root == nullptr || root->firstChild == nullptr)
             return;
-        FileNode *iter = root->firstChild;
+        FileNode* iter = root->firstChild;
         while (iter != nullptr) {
             iter->parent = root;
-            ptrHelper(root); // å¯èƒ½æœ‰æ–‡ä»¶å¤¹ç»“ç‚¹
+            ptrHelper(root); // ¿ÉÄÜÓĞÎÄ¼ş¼Ğ½áµã
             iter = iter->next;
         }
     }
 
-    void rebuildTree(std::ifstream &ifile)
+    void rebuildTree(std::ifstream& ifile)
     {
         assert(root_ == nullptr);
         if (!ifile) {
@@ -342,31 +341,31 @@ class MerkleTree {
         ia >> root_;
         ptrHelper(root_);
         ifile.close();
-        std::cout << "å®Œæˆè¯»å–å’Œæ„å»º" << std::endl;
+        std::cout << "Íê³É¶ÁÈ¡ºÍ¹¹½¨" << std::endl;
     }
 
-  public:
+public:
     MerkleTree() = default;
 
     MerkleTree(std::string dir_path);
 
-    bool isSame(MerkleTree *other)
+    bool isSame(MerkleTree* other)
     {
         return root_->hash == other->root_->hash;
     }
 
-    void updateTree(MerkleTree *old)
+    void updateTree(MerkleTree* old)
     {
         syncTree(root_, old->root_);
     }
 
-    void readTree(std::string const &filepath)
+    void readTree(std::string const& filepath)
     {
         std::ifstream ifile(filepath);
         rebuildTree(ifile);
     }
 
-    void makeTree(std::string const &filepath)
+    void makeTree(std::string const& filepath)
     {
         std::ofstream ofile(filepath);
         writeTree(ofile);
@@ -377,11 +376,11 @@ class MerkleTree {
         deleteTree(root_);
     }
 
-    void sync_from(MerkleTree const &other);
+    void sync_from(MerkleTree const& other);
 
     template <class Archive>
-    void serialize(Archive &ar, unsigned int const version)
+    void serialize(Archive& ar, unsigned int const version)
     {
-        ar & folder_;
+        ar& folder_;
     }
 };

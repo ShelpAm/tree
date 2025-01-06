@@ -1,48 +1,58 @@
-#include <libtree/tree.hpp>
+#include "MerkleTree.h"
 
 bool MerkleTree::FileNode::isFolder()
 {
-    return firstChild != nullptr;
+    FileNode* p = this->parent;
+    std::filesystem::path path = this->filepath;
+    while (p != nullptr) {
+        path = p->filepath / path;
+        p = p->parent;
+    }
+    if (std::filesystem::is_directory(path)) {
+        return true;
+    }
+    else return false;
 }
-bool MerkleTree::FileNode::isDiff(FileNode const *other)
+
+bool MerkleTree::FileNode::isDiff(FileNode const* other)
 {
     return this->hash != other->hash;
 }
 
-MerkleTree::FileNode::FileNode(std::string const &time,
-                               std::filesystem::path const &path)
+MerkleTree::FileNode::FileNode(std::string const& time,
+    std::filesystem::path const& path)
     : filepath(path)
 {
     hashString = time + '|' + path.string();
-    SHA256(reinterpret_cast<unsigned char const *>(hashString.c_str()),
-           hashString.size(), hash.data());
+    SHA256(reinterpret_cast<unsigned char const*>(hashString.c_str()),
+        hashString.size(), hash.data());
 }
 MerkleTree::FileNode::FileNode(std::string s) : hashString(std::move(s))
 {
-    SHA256(reinterpret_cast<unsigned char const *>(hashString.c_str()),
-           hashString.size(), hash.data());
+    SHA256(reinterpret_cast<unsigned char const*>(hashString.c_str()),
+        hashString.size(), hash.data());
 }
 
-MerkleTree::FileNode::FileNode(unsigned char *h)
+MerkleTree::FileNode::FileNode(unsigned char* h)
 {
     std::memcpy(hash.data(), h, 32);
 }
 
-MerkleTree::FileNode::FileNode(FileNode *other)
+MerkleTree::FileNode::FileNode(FileNode* other)
     : hashString(other->hashString), parent(other->parent),
-      firstChild(other->firstChild), next(other->next),
-      childNum(other->childNum), hash{other->hash}
+    firstChild(other->firstChild), next(other->next),
+    childNum(other->childNum), hash{ other->hash }
 {
 }
 
 MerkleTree::FileNode::FileNode()
 {
     hashString = "";
-    SHA256(reinterpret_cast<unsigned char const *>(hashString.c_str()),
-           hashString.size(), hash.data());
+    SHA256(reinterpret_cast<unsigned char const*>(hashString.c_str()),
+        hashString.size(), hash.data());
 }
 
-void MerkleTree::sync_from(MerkleTree const &other)
+void MerkleTree::sync_from(MerkleTree const& other)
 {
     syncFile(root_, other.root_, root_->filepath, other.root_->filepath);
 }
@@ -52,83 +62,83 @@ MerkleTree::MerkleTree(std::string dir_path)
     namespace fs = std::filesystem;
 
     if (!fs::is_directory(dir_path)) {
-        throw std::runtime_error{"path isn't a directory"};
+        throw std::runtime_error{ "path isn't a directory" };
     }
     folder_ = std::move(dir_path);
-    root_ = buildTree(folder_); // é€’å½’å»ºæ ‘
+    root_ = buildTree(folder_); // µÝ¹é½¨Ê÷
 }
 
-void MerkleTree::syncFile(FileNode *A, FileNode *B,
-                          std::filesystem::path const &rootA,
-                          std::filesystem::path const &rootB)
+void MerkleTree::syncFile(FileNode* A, FileNode* B,
+    std::filesystem::path const& rootA,
+    std::filesystem::path const& rootB)
 {
     namespace fs = std::filesystem;
 
-    // è¦ä¼ é€’æ ¹ç›®å½•çš„ç»å¯¹è·¯å¾„ï¼Œä¸ç„¶æ— æ³•å®šä½æ–‡ä»¶
+    // Òª´«µÝ¸ùÄ¿Â¼µÄ¾ø¶ÔÂ·¾¶£¬²»È»ÎÞ·¨¶¨Î»ÎÄ¼þ
     // Should be fixed here: logic error
     if (!A || !B || !A->isFolder() || !B->isFolder()) {
         throw std::runtime_error("node error(use error)");
         return;
     }
 
-    // Bæœ‰Aæ²¡æœ‰
-    FileNode *currentB = B->firstChild;
+    // BÓÐAÃ»ÓÐ
+    FileNode* currentB = B->firstChild;
     while (currentB) {
-        FileNode *correspondingA = findFile(A->firstChild, currentB->filepath);
+        FileNode* correspondingA = findFile(A, currentB->filepath);
         if (!correspondingA) {
-            // A ä¸­ä¸å­˜åœ¨ï¼Œåˆ é™¤Bä¸­ç»“ç‚¹å¯¹åº”çš„æ–‡ä»¶æˆ–æ–‡ä»¶å¤¹
+            // A ÖÐ²»´æÔÚ£¬É¾³ýBÖÐ½áµã¶ÔÓ¦µÄÎÄ¼þ»òÎÄ¼þ¼Ð
             std::filesystem::path targetPath = rootB / currentB->filepath;
             if (currentB->isFolder()) {
-                std::filesystem::remove_all(targetPath); // åˆ é™¤æ–‡ä»¶å¤¹
+                std::filesystem::remove_all(targetPath); // É¾³ýÎÄ¼þ¼Ð
             }
             else {
-                std::filesystem::remove(targetPath); // åˆ é™¤æ–‡ä»¶
+                std::filesystem::remove(targetPath); // É¾³ýÎÄ¼þ
             }
-            deleteNode(B, currentB->filepath); // åˆ é™¤å“ˆå¸Œæ ‘ä¸­å¯¹åº”èŠ‚ç‚¹
+            deleteNode(currentB, currentB->filepath); // É¾³ý¹þÏ£Ê÷ÖÐ¶ÔÓ¦½Úµã
         }
         currentB = currentB->next;
     }
 
-    // Aæœ‰Bæ²¡æœ‰
-    FileNode *currentA = A->firstChild;
+    // AÓÐBÃ»ÓÐ
+    FileNode* currentA = A->firstChild;
     while (currentA) {
-        FileNode *correspondingB = findFile(B->firstChild, currentA->filepath);
+        FileNode* correspondingB = findFile(B, currentA->filepath);
         if (!correspondingB) {
-            // B ä¸­ä¸å­˜åœ¨ï¼Œæ‹·è´ A çš„æ–‡ä»¶æˆ–æ–‡ä»¶å¤¹åˆ° B
+            // B ÖÐ²»´æÔÚ£¬¿½±´ A µÄÎÄ¼þ»òÎÄ¼þ¼Ðµ½ B
             auto sourcePath = rootA / currentA->filepath;
             auto targetPath = rootB / currentA->filepath;
 
             if (currentA->isFolder()) {
                 fs::create_directories(
-                    targetPath); // åˆ›å»ºç©ºæ–‡ä»¶å¤¹ï¼ŒéšåŽä¼šåœ¨éåŽ†ç»“ç‚¹æ—¶é€’å½’å¡«å……
+                    targetPath); // ´´½¨¿ÕÎÄ¼þ¼Ð£¬Ëæºó»áÔÚ±éÀú½áµãÊ±µÝ¹éÌî³ä
             }
             else {
                 fs::copy(sourcePath, targetPath,
-                         fs::copy_options::overwrite_existing); // å¤åˆ¶æ–‡ä»¶
+                    fs::copy_options::overwrite_existing); // ¸´ÖÆÎÄ¼þ
             }
-            FileNode *newNode = new FileNode(currentA->hashString);
+            FileNode* newNode = new FileNode(currentA->hashString);
             addNode(newNode, B);
         }
         currentA = currentA->next;
     }
 
-    // åŒæ—¶éåŽ† A å’Œ Bï¼Œæ£€æŸ¥å“ˆå¸Œå€¼ä¸åŒçš„èŠ‚ç‚¹å¹¶æ›´æ–°
+    // Í¬Ê±±éÀú A ºÍ B£¬¼ì²é¹þÏ£Öµ²»Í¬µÄ½Úµã²¢¸üÐÂ
     currentA = A->firstChild;
     currentB = B->firstChild;
     while (currentA && currentB) {
         if (currentA->filepath == currentB->filepath) {
             if (currentA->isDiff(currentB)) {
-                // å“ˆå¸Œå€¼ä¸åŒï¼Œè¦†ç›–æ›´æ–° B çš„æ–‡ä»¶
+                // ¹þÏ£Öµ²»Í¬£¬¸²¸Ç¸üÐÂ B µÄÎÄ¼þ
                 auto sourcePath = rootA / currentA->filepath;
                 auto targetPath = rootB / currentB->filepath;
                 fs::copy(sourcePath, targetPath,
-                         fs::copy_options::overwrite_existing); // è¦†ç›–æ›´æ–°
+                    fs::copy_options::overwrite_existing); // ¸²¸Ç¸üÐÂ
                 std::string time = std::to_string(
                     fs::last_write_time(sourcePath).time_since_epoch().count());
                 changeHash(currentB, time,
-                           currentB->filepath); // æ›´æ–° B çš„å“ˆå¸Œå€¼
+                    currentB->filepath); // ¸üÐÂ B µÄ¹þÏ£Öµ
             }
-            // é€’å½’å¤„ç†å­ç›®å½•
+            // µÝ¹é´¦Àí×ÓÄ¿Â¼
             if (currentA->isFolder() && currentB->isFolder()) {
                 syncFile(currentA, currentB, rootA, rootB);
             }
