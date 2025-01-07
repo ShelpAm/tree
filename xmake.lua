@@ -17,6 +17,7 @@ add_syslinks("libcrypto", "libssl", "Crypt32", "Ws2_32", "Advapi32", "Kernel32",
 target("libtree")
     set_kind("static")
     add_files("libtree/tree.cpp")
+    add_headerfiles("libtree/tree.hpp")
     add_includedirs(".")
     add_packages("boost", "openssl")
 

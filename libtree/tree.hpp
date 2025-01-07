@@ -66,12 +66,14 @@ class MerkleTree {
         template <class Archive>
         void serialize(Archive &ar, unsigned int const version)
         {
+
             ar& hashString;
             ar& filepath;
             ar& childNum;
             ar& boost::serialization::make_array(hash.data(), hash.size());
             ar& firstChild;
             ar& next;
+
         }
     };
 
