@@ -66,10 +66,12 @@ class MerkleTree {
         template <class Archive>
         void serialize(Archive &ar, unsigned int const version)
         {
-            ar & hashString;
-            ar & filepath;
-            ar & childNum;
-            ar &boost::serialization::make_array(hash.data(), hash.size());
+            ar& hashString;
+            ar& filepath;
+            ar& childNum;
+            ar& boost::serialization::make_array(hash.data(), hash.size());
+            ar& firstChild;
+            ar& next;
         }
     };
 
@@ -315,14 +317,14 @@ class MerkleTree {
     }
 
     // boost库不支持双向指针，因此只保存单向，另外一个方向的指针重新构建
-    void ptrHelper(FileNode *root)
+    void ptrHelper(FileNode* root)
     {
         if (root == nullptr || root->firstChild == nullptr)
             return;
-        FileNode *iter = root->firstChild;
+        FileNode* iter = root->firstChild;
         while (iter != nullptr) {
             iter->parent = root;
-            ptrHelper(root); // 可能有文件夹结点
+            ptrHelper(iter); //修正为传递iter
             iter = iter->next;
         }
     }
@@ -399,5 +401,6 @@ class MerkleTree {
     void serialize(Archive &ar, unsigned int const version)
     {
         ar & folder_;
+        ar& root_;
     }
 };
