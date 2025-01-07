@@ -1,14 +1,18 @@
 #pragma once
-#include <algorithm>
-#include <array>
+
+#include <libtree/print.hpp>
+
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
+#include <openssl/sha.h>
+
+#include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <openssl/sha.h>
 #include <print>
 #include <queue>
 #include <sstream>
@@ -66,18 +70,18 @@ class MerkleTree {
         template <class Archive>
         void serialize(Archive &ar, unsigned int const version)
         {
-
-            ar& hashString;
-            ar& filepath;
-            ar& childNum;
-            ar& boost::serialization::make_array(hash.data(), hash.size());
-            ar& firstChild;
-            ar& next;
-
+            // ar & hashString;
+            // ar & filepath;
+            // ar & childNum;
+            // ar &boost::serialization::make_array(hash.data(), hash.size());
+            // assert(firstChild);
+            // assert(next);
+            ar & firstChild;
+            ar & next;
         }
     };
 
-    std::filesystem::path folder_;
+    std::filesystem::path base_dir_;
     FileNode *root_ = nullptr;
 
     MerkleTree() = default;
@@ -86,56 +90,54 @@ class MerkleTree {
 
     FileNode *buildTree(std::filesystem::path const &p)
     {
-        assert(std::filesystem::is_directory(p) ||
-               std::filesystem::is_directory(folder_ / p));
+        namespace fs = std::filesystem;
+
+        assert(fs::is_directory(p) || fs::is_directory(base_dir_ / p));
         std::queue<FileNode *> total; // 按顺序构建
 
-        std::vector<std::filesystem::path> paths;
-        for (auto const &i : std::filesystem::directory_iterator(folder_ / p)) {
-            paths.push_back(std::filesystem::relative(i, folder_)); // 相对路径
+        std::vector<fs::path> paths{};
+        for (auto const &i : fs::directory_iterator(base_dir_ / p)) {
+            paths.push_back(fs::relative(i, base_dir_)); // 相对路径
         }
 
         // 维护一个相对稳定的顺序（使用迭代器遍历文件的顺序可能不一致）
-        std::sort(paths.begin(), paths.end());
+        std::ranges::sort(paths);
 
         uint64_t cnt = 0;
         for (auto const &i : paths) {
-            if (std::filesystem::is_directory(folder_ / i)) {
-                FileNode *now = buildTree(i);
-                cnt += now->childNum;
-                std::string h(reinterpret_cast<char *>(now->hash.data()), 32);
-                now->filepath = i; // 相对路径
-                total.push(now);
+            FileNode *son;
+            if (fs::is_directory(base_dir_ / i)) {
+                son = buildTree(i);
+                cnt += son->childNum;
+                son->filepath = i; // 相对路径
             }
             else {
-                std::string t =
-                    std::to_string(std::filesystem::last_write_time(folder_ / i)
+                // 最近修改时间
+                son = new FileNode(
+                    std::to_string(fs::last_write_time(base_dir_ / i)
                                        .time_since_epoch()
-                                       .count()); // 最近修改时间
-                FileNode *now = new FileNode(t, i);
+                                       .count()),
+                    i);
                 cnt++;
-                std::string h(reinterpret_cast<char *>(now->hash.data()), 32);
-
-                total.push(now);
             }
+            total.push(son);
         }
 
-        std::ostringstream fatherstr;
-
         FileNode *firstChild = nullptr;
+        std::string node_str{p.string()};
 
-        while (total.size() > 0) {
+        while (!total.empty()) {
             FileNode *curr = total.front();
             total.pop();
             if (firstChild == nullptr)
                 firstChild = curr;
 
             curr->next = (total.empty()) ? nullptr : total.front();
-            std::string h(reinterpret_cast<char *>(curr->hash.data()), 32);
-            fatherstr << h;
+            node_str += std::string_view(
+                reinterpret_cast<char *>(curr->hash.data()), curr->hash.size());
         }
 
-        FileNode *current = new FileNode(fatherstr.str());
+        FileNode *current = new FileNode(node_str);
         current->filepath = p;
         current->firstChild = firstChild;
         current->childNum = cnt;
@@ -217,16 +219,15 @@ class MerkleTree {
 
         if (pre == nullptr) { // folder的firstChild结点
             folder->firstChild = f->next;
-            delete f;
+            // delete f;
             recomputeHash(folder->firstChild);
-            return true;
         }
         else {
             pre->next = f->next;
-            delete f;
+            // delete f;
             recomputeHash(folder->firstChild);
-            return true;
         }
+        return true;
     }
 
     void changeHash(FileNode *root, std::string const &time,
@@ -319,14 +320,14 @@ class MerkleTree {
     }
 
     // boost库不支持双向指针，因此只保存单向，另外一个方向的指针重新构建
-    void ptrHelper(FileNode* root)
+    void ptrHelper(FileNode *root)
     {
         if (root == nullptr || root->firstChild == nullptr)
             return;
-        FileNode* iter = root->firstChild;
+        FileNode *iter = root->firstChild;
         while (iter != nullptr) {
             iter->parent = root;
-            ptrHelper(iter); //修正为传递iter
+            ptrHelper(iter); // 修正为传递iter
             iter = iter->next;
         }
     }
@@ -402,7 +403,7 @@ class MerkleTree {
     template <class Archive>
     void serialize(Archive &ar, unsigned int const version)
     {
-        ar & folder_;
-        ar& root_;
+        ar & base_dir_;
+        ar & root_;
     }
 };

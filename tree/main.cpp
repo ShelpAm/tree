@@ -1,14 +1,8 @@
 #include <cstdlib>
 #include <filesystem>
+#include <libtree/print.hpp>
 #include <libtree/tree.hpp>
-#include <print>
 #include <string_view>
-
-template <typename... Args>
-void errorln(std::format_string<Args...> fmt, Args &&...args)
-{
-    std::println(std::cerr, fmt, std::forward<Args>(args)...);
-}
 
 int main(int argc, char **argv)
 {

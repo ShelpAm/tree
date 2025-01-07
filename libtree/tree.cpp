@@ -64,8 +64,8 @@ MerkleTree::MerkleTree(std::string dir_path)
         throw std::runtime_error{
             std::format("path {} isn't a directory", dir_path)};
     }
-    folder_ = std::move(dir_path);
-    root_ = buildTree(folder_); // 递归建树
+    base_dir_ = std::move(dir_path);
+    root_ = buildTree(base_dir_); // 递归建树
 }
 
 void MerkleTree::syncFile(FileNode *A, FileNode *B,
@@ -109,8 +109,9 @@ void MerkleTree::syncFile(FileNode *A, FileNode *B,
             auto targetPath = rootB / currentA->filepath;
 
             if (currentA->isFolder()) {
-                fs::create_directories(
-                    targetPath); // 创建空文件夹，随后会在遍历结点时递归填充
+                fs::copy(sourcePath, targetPath,
+                         fs::copy_options::recursive |
+                             fs::copy_options::overwrite_existing);
             }
             else {
                 fs::copy(sourcePath, targetPath,
