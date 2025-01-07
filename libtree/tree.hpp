@@ -70,6 +70,9 @@ class MerkleTree {
             ar & filepath;
             ar & childNum;
             ar &boost::serialization::make_array(hash.data(), hash.size());
+
+            ar & next;
+            ar & firstChild;
         }
     };
 

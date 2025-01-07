@@ -8,6 +8,7 @@ add_requires("openssl")
 target("libtree")
     set_kind("static")
     add_files("libtree/tree.cpp")
+    add_headerfiles("libtree/tree.hpp")
     add_includedirs(".")
     add_packages("boost", "openssl")
 
