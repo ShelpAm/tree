@@ -45,7 +45,7 @@ class MerkleTree {
     struct FileNode {
 
         std::string hashString;
-        std::filesystem::path filepath;
+        std::filesystem::path filepath; // Relative path
         std::array<unsigned char, 32> hash;
         FileNode *parent = nullptr;
         FileNode *firstChild = nullptr;

@@ -3,14 +3,7 @@
 bool MerkleTree::FileNode::isFolder()
 {
     namespace fs = std::filesystem;
-
-    FileNode *p = this->parent;
-    fs::path path = this->filepath;
-    while (p != nullptr) {
-        path = p->filepath / path;
-        p = p->parent;
-    }
-    return fs::is_directory(path);
+    return fs::is_directory(filepath);
 }
 
 bool MerkleTree::FileNode::isDiff(FileNode const *other)
@@ -78,25 +71,25 @@ void MerkleTree::syncFile(FileNode *A, FileNode *B,
     // Should be fixed here: logic error
     if (!A || !B || !A->isFolder() || !B->isFolder()) {
         throw std::runtime_error("node error(use error)");
-        return;
     }
 
     // B有A没有
     FileNode *currentB = B->firstChild;
     while (currentB) {
+        auto b_next{currentB->next};
         FileNode *correspondingA = findFile(A, currentB->filepath);
         if (!correspondingA) {
             // A 中不存在，删除B中结点对应的文件或文件夹
-            std::filesystem::path targetPath = rootB / currentB->filepath;
+            fs::path targetPath = rootB / currentB->filepath;
             if (currentB->isFolder()) {
-                std::filesystem::remove_all(targetPath); // 删除文件夹
+                fs::remove_all(targetPath); // 删除文件夹
             }
             else {
-                std::filesystem::remove(targetPath); // 删除文件
+                fs::remove(targetPath); // 删除文件
             }
             deleteNode(B, currentB->filepath); // 删除哈希树中对应节点
         }
-        currentB = currentB->next;
+        currentB = b_next;
     }
 
     // A有B没有
@@ -107,6 +100,9 @@ void MerkleTree::syncFile(FileNode *A, FileNode *B,
             // B 中不存在，拷贝 A 的文件或文件夹到 B
             auto sourcePath = rootA / currentA->filepath;
             auto targetPath = rootB / currentA->filepath;
+            errorln("Didn't find corresponding file in B, syncing to target "
+                    "\"{}\"...",
+                    targetPath.string());
 
             if (currentA->isFolder()) {
                 fs::copy(sourcePath, targetPath,
@@ -118,6 +114,7 @@ void MerkleTree::syncFile(FileNode *A, FileNode *B,
                          fs::copy_options::overwrite_existing); // 复制文件
             }
             FileNode *newNode = new FileNode(currentA->hashString);
+            newNode->filepath = currentA->filepath;
             addNode(newNode, B);
         }
         currentA = currentA->next;
@@ -126,28 +123,30 @@ void MerkleTree::syncFile(FileNode *A, FileNode *B,
     // 同时遍历 A 和 B，检查哈希值不同的节点并更新
     currentA = A->firstChild;
     currentB = B->firstChild;
-    while (currentA && currentB) {
-        if (currentA->filepath == currentB->filepath) {
-            if (currentA->isDiff(currentB)) {
-                // 哈希值不同，覆盖更新 B 的文件
-                auto sourcePath = rootA / currentA->filepath;
-                auto targetPath = rootB / currentB->filepath;
-                fs::copy(sourcePath, targetPath,
-                         fs::copy_options::overwrite_existing); // 覆盖更新
-                std::string time = std::to_string(
-                    fs::last_write_time(sourcePath).time_since_epoch().count());
-                changeHash(currentB, time,
-                           currentB->filepath); // 更新 B 的哈希值
-            }
-            // 递归处理子目录
-            if (currentA->isFolder() && currentB->isFolder()) {
-                syncFile(currentA, currentB, rootA, rootB);
-            }
-            currentA = currentA->next;
-            currentB = currentB->next;
+    while (currentA != nullptr) {
+        assert(currentB != nullptr);
+        errorln("a.path: {}, b.path: {}", currentA->filepath.string(),
+                currentB->filepath.string());
+        assert(currentA->filepath == currentB->filepath);
+        // TODO(shelpam): didn't consider file type diff: directory or regular
+        // file?
+        if (currentA->isDiff(currentB)) {
+            // 哈希值不同，覆盖更新 B 的文件
+            auto sourcePath = rootA / currentA->filepath;
+            auto targetPath = rootB / currentB->filepath;
+            fs::copy(sourcePath, targetPath,
+                     fs::copy_options::overwrite_existing); // 覆盖更新
+            std::string time = std::to_string(
+                fs::last_write_time(sourcePath).time_since_epoch().count());
+            changeHash(currentB, time,
+                       currentB->filepath); // 更新 B 的哈希值
         }
-        else {
-            break;
+        // 递归处理子目录
+        assert(currentA->isFolder() == currentB->isFolder());
+        if (currentA->isFolder()) {
+            syncFile(currentA, currentB, rootA, rootB);
         }
+        currentA = currentA->next;
+        currentB = currentB->next;
     }
 }
